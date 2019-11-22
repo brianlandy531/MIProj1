@@ -25,7 +25,15 @@ def randLabel(val):
     else:
         return random.randint(90,100)/100
 
+def adjustLR(epoch):
 
+    if(epoch<50):
+        return 5*lr
+    elif(epoch<100):
+        return 2*lr
+    elif(epoch<200):
+        return lr
+    
 
 #if __name__ == '__main__':
 #    torch.multiprocessing.freeze_support()
@@ -40,9 +48,9 @@ if __name__ == '__main__':
     parser.add_argument('--batchSize', type=int, default=64, help='input batch size')
     parser.add_argument('--imageSize', type=int, default=64, help='the height / width of the input image to network')
     parser.add_argument('--nz', type=int, default=100, help='size of the latent z vector')
-    parser.add_argument('--ngf', type=int, default=64)
     parser.add_argument('--ndf', type=int, default=64)
-    parser.add_argument('--niter', type=int, default=1750, help='number of epochs to train for')
+    parser.add_argument('--ngf', type=int, default=64)
+    parser.add_argument('--niter', type=int, default=800, help='number of epochs to train for')
     parser.add_argument('--lr', type=float, default=0.0002, help='learning rate, default=0.0002')
     parser.add_argument('--beta1', type=float, default=0.5, help='beta1 for adam. default=0.5')
     parser.add_argument('--cuda', action='store_true', help='enables cuda')
@@ -51,6 +59,7 @@ if __name__ == '__main__':
     parser.add_argument('--netD', default='', help="path to netD (to continue training)")
     parser.add_argument('--outf', default='.', help='folder to output images and model checkpoints')
     parser.add_argument('--manualSeed', type=int, help='manual seed')
+    parser.add_argument('--realgets0', action='store_true', help='You want real to be labeled 0?')
     #parser.add_argument('--classes', default='bedroom', help='comma separated list of classes for the lsun data set')
 
     parser.add_argument('--classes', default='church_outdoor', help='comma separated list of classes for the lsun data set')
@@ -95,28 +104,7 @@ if __name__ == '__main__':
                                 transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
                             ]))
         nc=3
-    elif opt.dataset == 'cifar10':
-        dataset = dset.CIFAR10(root=opt.dataroot, download=True,
-                               transform=transforms.Compose([
-                                   transforms.Resize(opt.imageSize),
-                                   transforms.ToTensor(),
-                                   transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
-                               ]))
-        nc=3
 
-    elif opt.dataset == 'mnist':
-            dataset = dset.MNIST(root=opt.dataroot, download=True,
-                               transform=transforms.Compose([
-                                   transforms.Resize(opt.imageSize),
-                                   transforms.ToTensor(),
-                                   transforms.Normalize((0.5,), (0.5,)),
-                               ]))
-            nc=1
-
-    elif opt.dataset == 'fake':
-        dataset = dset.FakeData(image_size=(3, opt.imageSize, opt.imageSize),
-                                transform=transforms.ToTensor())
-        nc=3
 
     assert dataset
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=opt.batchSize,
@@ -127,9 +115,6 @@ if __name__ == '__main__':
     nz = int(opt.nz)
     ngf = int(opt.ngf)
     ndf = int(opt.ndf)
-
-
-
 
 
     # custom weights initialization called on netG and netD
@@ -230,12 +215,17 @@ if __name__ == '__main__':
     if opt.netD != '':
         netD.load_state_dict(torch.load(opt.netD))
     print(netD)         
-
+ 
     criterion = nn.BCELoss()
 
     fixed_noise = torch.randn(opt.batchSize, nz, 1, 1, device=device)
-    real_label = 1 #1
-    fake_label = 0 #0
+    
+    if(opt.realgets0):
+        real_label = 0 #1
+        fake_label = 1 #0
+    else:
+        real_label = 1 #1
+        fake_label = 0 #0
 
     # setup optimizer
     optimizerD = optim.Adam(netD.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
@@ -246,7 +236,10 @@ if __name__ == '__main__':
     sec_elap = -1.0
 
 
-    updateNet = 0
+    
+    modelSavePt = 2
+    
+    updateGeneratorEvery = 4
 
     for epoch in range(opt.niter):
         
@@ -262,7 +255,6 @@ if __name__ == '__main__':
 
             sec_elap = second_cur - sec_last             
 
-            updateNet = updateNet + 1
             
             
             print ("elapsed sec: %f" % sec_elap)
@@ -279,7 +271,7 @@ if __name__ == '__main__':
             output = netD(real_cpu)
             errD_real = criterion(output, label)
             
-            if(updateNet%4!=0):
+            if(i%updateGeneratorEvery!=0):
                 #if even iteration update D
                 errD_real.backward()
             
@@ -294,7 +286,7 @@ if __name__ == '__main__':
             output = netD(fake.detach())
             errD_fake = criterion(output, label)
             
-            if(updateNet%4!=0):
+            if(i%updateGeneratorEvery!=0):
                 #if even iteration update D
                 errD_fake.backward()
             
@@ -303,7 +295,7 @@ if __name__ == '__main__':
             errD = errD_real + errD_fake
             
             
-            if(updateNet%4!=0):
+            if(i%updateGeneratorEvery!=0):
                 #if even iteration update D
                 optimizerD.step()
 
@@ -322,12 +314,6 @@ if __name__ == '__main__':
                   % (epoch, opt.niter, i, len(dataloader),
                      errD.item(), errG.item(), D_x, D_G_z1, D_G_z2))
                      
-            
-                     
-            
-            
-                     
-                     
             if i % 100 == 0:
                 vutils.save_image(real_cpu,
                         '%s/real_samples.png' % opt.outf,
@@ -336,40 +322,60 @@ if __name__ == '__main__':
                 vutils.save_image(fake.detach(),
                         '%s/fake_samples_epoch_%03d.png' % (opt.outf, epoch),
                         normalize=True)
-                
+        
+        #store losses to give visual of how training is going
+        
         d_loss.append(errD.item())
         g_loss.append(errG.item())
         d_lossf.append(errD_fake.item())
         d_lossr.append(errD_real.item())             
         #print(d_loss)
         #print(g_loss)
+       
+
+        # #########################################################
+        #plot D losses
+        # #########################################################       
         
         plt.plot(d_loss, label="D Loss Avg", color="b")            
         plt.plot(d_lossr, label="D Loss Real", color="r")
         plt.plot(d_lossf, label="D Loss Fake", color="g")
+        plt.legend(loc='lower right')
+        
+        loss_name = "dloss"
+                
+        plt.ylabel('Loss D')
+        plt.xlabel('Epoch')
+        
+        namepng = opt.outf + "\epoch" + str(epoch) +loss_name+ ".png"
+        
+        plt.savefig(namepng)
+        
+        # #########################################################
+        #clear plot and do G losses
+        # #########################################################
+        plt.clf()
+
+        loss_name = "gloss"
+        
         plt.plot(g_loss, label="G Loss", color="m")
         plt.legend(loc='lower right')
 
                 
-        plt.ylabel('Loss')
+        plt.ylabel('Loss G')
         plt.xlabel('Epoch')
         
-        
-        
-        namepng = opt.outf + "\epoch" + str(epoch) + ".png"
+        namepng = opt.outf + "\epoch" + str(epoch) +loss_name+ ".png"
         
         plt.savefig(namepng)
         
         plt.clf()
         
-        #plt.show()
-        
-        
-        
-
-        # do checkpointing
-        torch.save(netG.state_dict(), '%s/netG_epoch_%d.pth' % (opt.outf, epoch))
-        torch.save(netD.state_dict(), '%s/netD_epoch_%d.pth' % (opt.outf, epoch))
+        #if it has been 100 epochs, stor model
+        if(epoch% modelSavePt==0):
+            # do checkpointing
+            torch.save(netG.state_dict(), '%s/netG_epoch_%d.pth' % (opt.outf, epoch))
+            torch.save(netD.state_dict(), '%s/netD_epoch_%d.pth' % (opt.outf, epoch))
 
 
 #play with noise terms for mode collaps and get more images maybe?
