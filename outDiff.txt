@@ -1,0 +1,95 @@
+221,222c221,222
+<     real_label = 1 #1
+<     fake_label = 0 #0
+---
+>     real_label = 0 #1
+>     fake_label = 1 #0
+232a233
+>     updateNet = 0
+234d234
+<     modelSavePt = 2
+236d235
+<     updateGeneratorEvery = 4
+251a251
+>             updateNet = updateNet + 1
+268c268
+<             if(epoch%updateGeneratorEvery!=0):
+---
+>             if(updateNet%4!=0):
+283c283
+<             if(epoch%updateGeneratorEvery!=0):
+---
+>             if(updateNet%4!=0):
+292c292
+<             if(epoch%updateGeneratorEvery!=0):
+---
+>             if(updateNet%4!=0):
+310a311,316
+>             
+>                      
+>             
+>             
+>                      
+>                      
+319,321c325
+<         
+<         #store losses to give visual of how training is going
+<         
+---
+>                 
+328,332d331
+<        
+< 
+<         # #########################################################
+<         #plot D losses
+<         # #########################################################       
+336a336
+>         plt.plot(g_loss, label="G Loss", color="m")
+338,339c338
+<         
+<         loss_name = "dloss"
+---
+> 
+341c340
+<         plt.ylabel('Loss D')
+---
+>         plt.ylabel('Loss')
+344c343,345
+<         namepng = opt.outf + "\epoch" + str(epoch) +loss_name+ ".png"
+---
+>         
+>         
+>         namepng = opt.outf + "\epoch" + str(epoch) + ".png"
+348,350d348
+<         # #########################################################
+<         #clear plot and do G losses
+<         # #########################################################
+352,360d349
+< 
+<         loss_name = "gloss"
+<         
+<         plt.plot(g_loss, label="G Loss", color="m")
+<         plt.legend(loc='lower right')
+< 
+<                 
+<         plt.ylabel('Loss G')
+<         plt.xlabel('Epoch')
+362c351
+<         namepng = opt.outf + "\epoch" + str(epoch) +loss_name+ ".png"
+---
+>         #plt.show()
+364d352
+<         plt.savefig(namepng)
+366d353
+<         plt.clf()
+368,372c355,358
+<         #if it has been 100 epochs, stor model
+<         if(epoch% modelSavePt==0):
+<             # do checkpointing
+<             torch.save(netG.state_dict(), '%s/netG_epoch_%d.pth' % (opt.outf, epoch))
+<             torch.save(netD.state_dict(), '%s/netD_epoch_%d.pth' % (opt.outf, epoch))
+---
+> 
+>         # do checkpointing
+>         torch.save(netG.state_dict(), '%s/netG_epoch_%d.pth' % (opt.outf, epoch))
+>         torch.save(netD.state_dict(), '%s/netD_epoch_%d.pth' % (opt.outf, epoch))

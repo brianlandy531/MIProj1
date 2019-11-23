@@ -16,14 +16,21 @@ import datetime
  
 #globals
 
+globalLeaky =False
 
-def randLabel(val):
+def randLabel(val, largeSoft):
     #print(val)
-    
-    if(val==0):
-        return 0 #random.randint(0,10)/100
+    if(largeSoft):       
+        if(val==0):
+            return random.randint(0,30)/100
+        else:
+            return random.randint(70,120)/100
     else:
-        return random.randint(90,100)/100
+    
+        if(val==0):
+            return random.randint(0,10)/100
+        else:
+            return random.randint(90,100)/100
 
 def adjustLR(epoch):
 
@@ -52,6 +59,7 @@ if __name__ == '__main__':
     parser.add_argument('--ngf', type=int, default=64)
     parser.add_argument('--niter', type=int, default=800, help='number of epochs to train for')
     parser.add_argument('--lr', type=float, default=0.0002, help='learning rate, default=0.0002')
+    parser.add_argument('--lrD', type=float, default=0.00005, help='learning rate, default=0.0002')
     parser.add_argument('--beta1', type=float, default=0.5, help='beta1 for adam. default=0.5')
     parser.add_argument('--cuda', action='store_true', help='enables cuda')
     parser.add_argument('--ngpu', type=int, default=1, help='number of GPUs to use')
@@ -60,12 +68,17 @@ if __name__ == '__main__':
     parser.add_argument('--outf', default='.', help='folder to output images and model checkpoints')
     parser.add_argument('--manualSeed', type=int, help='manual seed')
     parser.add_argument('--realgets0', action='store_true', help='You want real to be labeled 0?')
+    parser.add_argument('--largeSoft', action='store_true', help='big soft labels on both sides, as specified in goodfellow paper')
+    parser.add_argument('--allLeaky', action='store_true', help='only use leaky relus')
+    
     #parser.add_argument('--classes', default='bedroom', help='comma separated list of classes for the lsun data set')
 
     parser.add_argument('--classes', default='church_outdoor', help='comma separated list of classes for the lsun data set')
 
-
+   
     opt = parser.parse_args()
+    globalLeaky = opt.allLeaky
+   
     print(opt)
 
     try:
@@ -131,28 +144,52 @@ if __name__ == '__main__':
         def __init__(self, ngpu):
             super(Generator, self).__init__()
             self.ngpu = ngpu
-            self.main = nn.Sequential(
-                # input is Z, going into a convolution
-                nn.ConvTranspose2d(     nz, ngf * 8, 4, 1, 0, bias=False),
-                nn.BatchNorm2d(ngf * 8),
-                nn.ReLU(True),
-                # state size. (ngf*8) x 4 x 4
-                nn.ConvTranspose2d(ngf * 8, ngf * 4, 4, 2, 1, bias=False),
-                nn.BatchNorm2d(ngf * 4),
-                nn.ReLU(True),
-                # state size. (ngf*4) x 8 x 8
-                nn.ConvTranspose2d(ngf * 4, ngf * 2, 4, 2, 1, bias=False),
-                nn.BatchNorm2d(ngf * 2),
-                nn.ReLU(True),
-                # state size. (ngf*2) x 16 x 16
-                nn.ConvTranspose2d(ngf * 2,     ngf, 4, 2, 1, bias=False),
-                nn.BatchNorm2d(ngf),
-                nn.ReLU(True),
-                # state size. (ngf) x 32 x 32
-                nn.ConvTranspose2d(    ngf,      nc, 4, 2, 1, bias=False),
-                nn.Tanh()
-                # state size. (nc) x 64 x 64
-            )
+            if(globalLeaky):
+                self.main = nn.Sequential(
+                    # input is Z, going into a convolution
+                    nn.ConvTranspose2d(     nz, ngf * 8, 4, 1, 0, bias=False),
+                    nn.BatchNorm2d(ngf * 8),
+                    nn.LeakyReLU(0.2),
+                    # state size. (ngf*8) x 4 x 4
+                    nn.ConvTranspose2d(ngf * 8, ngf * 4, 4, 2, 1, bias=False),
+                    nn.BatchNorm2d(ngf * 4),
+                    nn.LeakyReLU(0.2),
+                    # state size. (ngf*4) x 8 x 8
+                    nn.ConvTranspose2d(ngf * 4, ngf * 2, 4, 2, 1, bias=False),
+                    nn.BatchNorm2d(ngf * 2),
+                    nn.LeakyReLU(0.2),
+                    # state size. (ngf*2) x 16 x 16
+                    nn.ConvTranspose2d(ngf * 2,     ngf, 4, 2, 1, bias=False),
+                    nn.BatchNorm2d(ngf),
+                    nn.LeakyReLU(0.2),
+                    # state size. (ngf) x 32 x 32
+                    nn.ConvTranspose2d(    ngf,      nc, 4, 2, 1, bias=False),
+                    nn.Tanh()
+                    # state size. (nc) x 64 x 64
+                )
+            else:
+                self.main = nn.Sequential(
+                    # input is Z, going into a convolution
+                    nn.ConvTranspose2d(     nz, ngf * 8, 4, 1, 0, bias=False),
+                    nn.BatchNorm2d(ngf * 8),
+                    nn.ReLU(True),
+                    # state size. (ngf*8) x 4 x 4
+                    nn.ConvTranspose2d(ngf * 8, ngf * 4, 4, 2, 1, bias=False),
+                    nn.BatchNorm2d(ngf * 4),
+                    nn.ReLU(True),
+                    # state size. (ngf*4) x 8 x 8
+                    nn.ConvTranspose2d(ngf * 4, ngf * 2, 4, 2, 1, bias=False),
+                    nn.BatchNorm2d(ngf * 2),
+                    nn.ReLU(True),
+                    # state size. (ngf*2) x 16 x 16
+                    nn.ConvTranspose2d(ngf * 2,     ngf, 4, 2, 1, bias=False),
+                    nn.BatchNorm2d(ngf),
+                    nn.ReLU(True),
+                    # state size. (ngf) x 32 x 32
+                    nn.ConvTranspose2d(    ngf,      nc, 4, 2, 1, bias=False),
+                    nn.Tanh()
+                    # state size. (nc) x 64 x 64
+                )
 
         def forward(self, input):
             if input.is_cuda and self.ngpu > 1:
@@ -228,7 +265,7 @@ if __name__ == '__main__':
         fake_label = 0 #0
 
     # setup optimizer
-    optimizerD = optim.Adam(netD.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
+    optimizerD = optim.Adam(netD.parameters(), lr=opt.lrD, betas=(opt.beta1, 0.999))
     optimizerG = optim.Adam(netG.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
 
     second_cur = 0.0
@@ -237,9 +274,9 @@ if __name__ == '__main__':
 
 
     
-    modelSavePt = 2
+    modelSavePt = 10
     
-    updateGeneratorEvery = 4
+    #updateGeneratorEvery = 4
 
     for epoch in range(opt.niter):
         
@@ -266,14 +303,14 @@ if __name__ == '__main__':
             netD.zero_grad()
             real_cpu = data[0].to(device)
             batch_size = real_cpu.size(0)
-            label = torch.full((batch_size,), randLabel(real_label), device=device)
+            label = torch.full((batch_size,), randLabel(real_label, opt.largeSoft), device=device)
 
             output = netD(real_cpu)
             errD_real = criterion(output, label)
             
-            if(i%updateGeneratorEvery!=0):
+            #if(i%updateGeneratorEvery!=0):
                 #if even iteration update D
-                errD_real.backward()
+            errD_real.backward()
             
             
             
@@ -282,28 +319,28 @@ if __name__ == '__main__':
             # train with fake
             noise = torch.randn(batch_size, nz, 1, 1, device=device)
             fake = netG(noise)
-            label.fill_(randLabel(fake_label))
+            label.fill_(randLabel(fake_label, opt.largeSoft))
             output = netD(fake.detach())
             errD_fake = criterion(output, label)
             
-            if(i%updateGeneratorEvery!=0):
+        #    if(i%updateGeneratorEvery!=0):
                 #if even iteration update D
-                errD_fake.backward()
+            errD_fake.backward()
             
             
             D_G_z1 = output.mean().item()
             errD = errD_real + errD_fake
             
             
-            if(i%updateGeneratorEvery!=0):
+            #if(i%updateGeneratorEvery!=0):
                 #if even iteration update D
-                optimizerD.step()
+            optimizerD.step()
 
             ############################
             # (2) Update G network: maximize log(D(G(z)))
             ###########################
             netG.zero_grad()
-            label.fill_(randLabel(real_label))  # fake labels are real for generator cost
+            label.fill_(randLabel(real_label,opt.largeSoft))  # fake labels are real for generator cost
             output = netD(fake)
             errG = criterion(output, label)
             errG.backward()
