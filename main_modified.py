@@ -16,21 +16,33 @@ import datetime
  
 #globals
 
+#some defaults
 globalLeaky =False
+globalRelu=.2
 
-def randLabel(val, largeSoft):
+def randLabel(val, largeSoft, softLabels):
     #print(val)
-    if(largeSoft):       
-        if(val==0):
-            return random.randint(0,30)/100
-        else:
-            return random.randint(70,120)/100
-    else:
     
-        if(val==0):
-            return random.randint(0,10)/100
+
+    
+    
+    if(softLabels):
+        
+        
+        
+        if(largeSoft):       
+            if(val==0):
+                return random.randint(0,30)/100
+            else:
+                return random.randint(70,120)/100
         else:
-            return random.randint(90,100)/100
+        
+            if(val==0):
+                return random.randint(0,10)/100
+            else:
+                return random.randint(90,100)/100
+    else:
+        return val
 
 def adjustLR(epoch):
 
@@ -59,7 +71,6 @@ if __name__ == '__main__':
     parser.add_argument('--ngf', type=int, default=64)
     parser.add_argument('--niter', type=int, default=800, help='number of epochs to train for')
     parser.add_argument('--lr', type=float, default=0.0002, help='learning rate, default=0.0002')
-    parser.add_argument('--lrD', type=float, default=0.00005, help='learning rate, default=0.0002')
     parser.add_argument('--beta1', type=float, default=0.5, help='beta1 for adam. default=0.5')
     parser.add_argument('--cuda', action='store_true', help='enables cuda')
     parser.add_argument('--ngpu', type=int, default=1, help='number of GPUs to use')
@@ -67,19 +78,48 @@ if __name__ == '__main__':
     parser.add_argument('--netD', default='', help="path to netD (to continue training)")
     parser.add_argument('--outf', default='.', help='folder to output images and model checkpoints')
     parser.add_argument('--manualSeed', type=int, help='manual seed')
+    parser.add_argument('--classes', default='church_outdoor', help='comma separated list of classes for the lsun data set')
+
+    #custom options
     parser.add_argument('--realgets0', action='store_true', help='You want real to be labeled 0?')
     parser.add_argument('--largeSoft', action='store_true', help='big soft labels on both sides, as specified in goodfellow paper')
     parser.add_argument('--allLeaky', action='store_true', help='only use leaky relus')
-    
-    #parser.add_argument('--classes', default='bedroom', help='comma separated list of classes for the lsun data set')
+    parser.add_argument('--softLabels', action='store_true', help='use soft labels on?')
+    parser.add_argument('--lrD', type=float, default=0.00005, help='learning rate, default=0.0002')
+    parser.add_argument('--historical', action='store_true', help='turn on historical averaging')
 
-    parser.add_argument('--classes', default='church_outdoor', help='comma separated list of classes for the lsun data set')
+    parser.add_argument('--relu_slope', type=float, default=0.2, help='Relu activation leaky Slope')
 
+
+    parser.add_argument('--long_gen', action='store_true', help='Longer set of filters for generator')
+
+
+    parser.add_argument('--weightDecay', action='store_true', help='Adam Optimizer regularizer arg')
+
+    parser.add_argument('--DL2Reg', type=float, default=1e-5, help='D regularizer')
+    parser.add_argument('--GL2Reg', type=float, default=1e-6, help='G regularizer')
+
+   
    
     opt = parser.parse_args()
     globalLeaky = opt.allLeaky
+    globalRelu = opt.relu_slope
+   
    
     print(opt)
+
+
+    #This is to avoid wasting time with combinations that weren't meant to be run together (/yet)
+    if(opt.softLabels == False and opt.largeSoft == True):
+        print("you can't have large soft labels turned on without turning on the softlabels option first")
+        exit()
+   
+    if(opt.long_gen == True and opt.allLeaky == True):
+        print("Long generator networek with leaky relus not set up yet")
+        exit()
+        
+        
+
 
     try:
         os.makedirs(opt.outf)
@@ -144,51 +184,89 @@ if __name__ == '__main__':
         def __init__(self, ngpu):
             super(Generator, self).__init__()
             self.ngpu = ngpu
-            if(globalLeaky):
+            if(opt.long_gen):
                 self.main = nn.Sequential(
                     # input is Z, going into a convolution
-                    nn.ConvTranspose2d(     nz, ngf * 8, 4, 1, 0, bias=False),
+                    nn.ConvTranspose2d(     nz,  ngf * 8, 4, 1, 0, bias=False),
                     nn.BatchNorm2d(ngf * 8),
-                    nn.LeakyReLU(0.2),
+                    nn.ReLU(True),
                     # state size. (ngf*8) x 4 x 4
                     nn.ConvTranspose2d(ngf * 8, ngf * 4, 4, 2, 1, bias=False),
                     nn.BatchNorm2d(ngf * 4),
-                    nn.LeakyReLU(0.2),
+                    nn.ReLU(True),
                     # state size. (ngf*4) x 8 x 8
-                    nn.ConvTranspose2d(ngf * 4, ngf * 2, 4, 2, 1, bias=False),
+                    nn.ConvTranspose2d(ngf * 4, ngf * 3, 4, 2, 1, bias=False),
+                    nn.BatchNorm2d(ngf * 3),
+                    nn.ReLU(True),
+                    
+                    # state size. (ngf*3) x 16 x 16
+                    nn.ConvTranspose2d(ngf * 3, ngf * 2, 4, 2, 1, bias=False),
                     nn.BatchNorm2d(ngf * 2),
-                    nn.LeakyReLU(0.2),
-                    # state size. (ngf*2) x 16 x 16
+                    nn.ReLU(True),
+                    
+                    # state size. (ngf*2) x 24 x 24
                     nn.ConvTranspose2d(ngf * 2,     ngf, 4, 2, 1, bias=False),
                     nn.BatchNorm2d(ngf),
-                    nn.LeakyReLU(0.2),
-                    # state size. (ngf) x 32 x 32
+                    nn.ReLU(True),
+                    
+                    # # state size. (ngf) x 32 x 32
+                    # nn.ConvTranspose2d(ngf,     ngf, 4, 1, 1, bias=False),
+                    # nn.BatchNorm2d(ngf),
+                    # nn.ReLU(True),
+                    
+                    # state size. (ngf) x 48 x 48
                     nn.ConvTranspose2d(    ngf,      nc, 4, 2, 1, bias=False),
                     nn.Tanh()
                     # state size. (nc) x 64 x 64
                 )
+            
             else:
-                self.main = nn.Sequential(
-                    # input is Z, going into a convolution
-                    nn.ConvTranspose2d(     nz, ngf * 8, 4, 1, 0, bias=False),
-                    nn.BatchNorm2d(ngf * 8),
-                    nn.ReLU(True),
-                    # state size. (ngf*8) x 4 x 4
-                    nn.ConvTranspose2d(ngf * 8, ngf * 4, 4, 2, 1, bias=False),
-                    nn.BatchNorm2d(ngf * 4),
-                    nn.ReLU(True),
-                    # state size. (ngf*4) x 8 x 8
-                    nn.ConvTranspose2d(ngf * 4, ngf * 2, 4, 2, 1, bias=False),
-                    nn.BatchNorm2d(ngf * 2),
-                    nn.ReLU(True),
-                    # state size. (ngf*2) x 16 x 16
-                    nn.ConvTranspose2d(ngf * 2,     ngf, 4, 2, 1, bias=False),
-                    nn.BatchNorm2d(ngf),
-                    nn.ReLU(True),
-                    # state size. (ngf) x 32 x 32
-                    nn.ConvTranspose2d(    ngf,      nc, 4, 2, 1, bias=False),
-                    nn.Tanh()
-                    # state size. (nc) x 64 x 64
+            
+                if(globalLeaky):
+                    self.main = nn.Sequential(
+                        # input is Z, going into a convolution
+                        nn.ConvTranspose2d(     nz, ngf * 8, 4, 1, 0, bias=False),
+                        nn.BatchNorm2d(ngf * 8),
+                        nn.LeakyReLU(globalRelu),
+                        # state size. (ngf*8) x 4 x 4
+                        nn.ConvTranspose2d(ngf * 8, ngf * 4, 4, 2, 1, bias=False),
+                        nn.BatchNorm2d(ngf * 4),
+                        nn.LeakyReLU(globalRelu),
+                        # state size. (ngf*4) x 8 x 8
+                        nn.ConvTranspose2d(ngf * 4, ngf * 2, 4, 2, 1, bias=False),
+                        nn.BatchNorm2d(ngf * 2),
+                        nn.LeakyReLU(globalRelu),
+                        # state size. (ngf*2) x 16 x 16
+                        nn.ConvTranspose2d(ngf * 2,     ngf, 4, 2, 1, bias=False),
+                        nn.BatchNorm2d(ngf),
+                        nn.LeakyReLU(globalRelu),
+                        # state size. (ngf) x 32 x 32
+                        nn.ConvTranspose2d(    ngf,      nc, 4, 2, 1, bias=False),
+                        nn.Tanh()
+                        # state size. (nc) x 64 x 64
+                    )
+                else:
+                    self.main = nn.Sequential(
+                        # input is Z, going into a convolution
+                        nn.ConvTranspose2d(     nz,  ngf * 8, 4, 1, 0, bias=False),
+                        nn.BatchNorm2d(ngf * 8),
+                        nn.ReLU(True),
+                        # state size. (ngf*8) x 4 x 4
+                        nn.ConvTranspose2d(ngf * 8, ngf * 4, 4, 2, 1, bias=False),
+                        nn.BatchNorm2d(ngf * 4),
+                        nn.ReLU(True),
+                        # state size. (ngf*4) x 8 x 8
+                        nn.ConvTranspose2d(ngf * 4, ngf * 2, 4, 2, 1, bias=False),
+                        nn.BatchNorm2d(ngf * 2),
+                        nn.ReLU(True),
+                        # state size. (ngf*2) x 16 x 16
+                        nn.ConvTranspose2d(ngf * 2,     ngf, 4, 2, 1, bias=False),
+                        nn.BatchNorm2d(ngf),
+                        nn.ReLU(True),
+                        # state size. (ngf) x 32 x 32
+                        nn.ConvTranspose2d(    ngf,      nc, 4, 2, 1, bias=False),
+                        nn.Tanh()
+                        # state size. (nc) x 64 x 64
                 )
 
         def forward(self, input):
@@ -213,19 +291,19 @@ if __name__ == '__main__':
             self.main = nn.Sequential(
                 # input is (nc) x 64 x 64
                 nn.Conv2d(nc, ndf, 4, 2, 1, bias=False),
-                nn.LeakyReLU(0.2, inplace=True),
+                nn.LeakyReLU(globalRelu, inplace=True),
                 # state size. (ndf) x 32 x 32
                 nn.Conv2d(ndf, ndf * 2, 4, 2, 1, bias=False),
                 nn.BatchNorm2d(ndf * 2),
-                nn.LeakyReLU(0.2, inplace=True),
+                nn.LeakyReLU(globalRelu, inplace=True),
                 # state size. (ndf*2) x 16 x 16
                 nn.Conv2d(ndf * 2, ndf * 4, 4, 2, 1, bias=False),
                 nn.BatchNorm2d(ndf * 4),
-                nn.LeakyReLU(0.2, inplace=True),
+                nn.LeakyReLU(globalRelu, inplace=True),
                 # state size. (ndf*4) x 8 x 8
                 nn.Conv2d(ndf * 4, ndf * 8, 4, 2, 1, bias=False),
                 nn.BatchNorm2d(ndf * 8),
-                nn.LeakyReLU(0.2, inplace=True),
+                nn.LeakyReLU(globalRelu, inplace=True),
                 # state size. (ndf*8) x 4 x 4
                 nn.Conv2d(ndf * 8, 1, 4, 1, 0, bias=False),
                 nn.Sigmoid()
@@ -265,8 +343,18 @@ if __name__ == '__main__':
         fake_label = 0 #0
 
     # setup optimizer
-    optimizerD = optim.Adam(netD.parameters(), lr=opt.lrD, betas=(opt.beta1, 0.999))
-    optimizerG = optim.Adam(netG.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
+    
+    if(opt.weightDecay):
+    
+    
+        optimizerD = optim.Adam(netD.parameters(), lr=opt.lrD, betas=(opt.beta1, 0.999), weight_decay=opt.DL2Reg)
+        optimizerG = optim.Adam(netG.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999), weight_decay=opt.GL2Reg)
+
+    else:
+    
+        optimizerD = optim.Adam(netD.parameters(), lr=opt.lrD, betas=(opt.beta1, 0.999))
+        optimizerG = optim.Adam(netG.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
+
 
     second_cur = 0.0
     sec_last = 0.0
@@ -303,7 +391,7 @@ if __name__ == '__main__':
             netD.zero_grad()
             real_cpu = data[0].to(device)
             batch_size = real_cpu.size(0)
-            label = torch.full((batch_size,), randLabel(real_label, opt.largeSoft), device=device)
+            label = torch.full((batch_size,), randLabel(real_label, opt.largeSoft, opt.softLabels), device=device)
 
             output = netD(real_cpu)
             errD_real = criterion(output, label)
@@ -319,7 +407,7 @@ if __name__ == '__main__':
             # train with fake
             noise = torch.randn(batch_size, nz, 1, 1, device=device)
             fake = netG(noise)
-            label.fill_(randLabel(fake_label, opt.largeSoft))
+            label.fill_(randLabel(fake_label, opt.largeSoft, opt.softLabels))
             output = netD(fake.detach())
             errD_fake = criterion(output, label)
             
@@ -340,7 +428,7 @@ if __name__ == '__main__':
             # (2) Update G network: maximize log(D(G(z)))
             ###########################
             netG.zero_grad()
-            label.fill_(randLabel(real_label,opt.largeSoft))  # fake labels are real for generator cost
+            label.fill_(randLabel(real_label,opt.largeSoft, opt.softLabels))  # fake labels are real for generator cost
             output = netD(fake)
             errG = criterion(output, label)
             errG.backward()

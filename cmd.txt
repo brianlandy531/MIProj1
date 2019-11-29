@@ -1,9 +1,15 @@
-python main_modified.py --dataset lfw --dataroot C:\Users\brian\linktoWork\ml\datasets\AllVids --cuda --ngpu 1 --manualSeed 531 --outf output_run --batchSize 64
+python main_modified.py --dataset lfw --dataroot C:\Users\brian\linktoWork\ml\datasets\AllVids --cuda --ngpu 1 --manualSeed 531 --outf output_run --batchSize 64 --softLabels
 
 
-python main_modified.py --dataset lfw --dataroot C:\Users\brian\linktoWork\ml\datasets\AllVids --cuda --ngpu 1 --manualSeed 531 --outf output_real0 --batchSize 64 --realgets0
+python main_modified.py --dataset lfw --dataroot C:\Users\brian\linktoWork\ml\datasets\AllVids --cuda --ngpu 1 --manualSeed 531 --outf output_real0 --batchSize 64 --realgets0 --softLabels
 
-python main_modified.py --dataset lfw --dataroot C:\Users\brian\linktoWork\ml\datasets\AllVids --cuda --ngpu 1 --manualSeed 531 --outf ouputLowerLRD --lrD 0.00005
+python main_modified.py --dataset lfw --dataroot C:\Users\brian\linktoWork\ml\datasets\AllVids --cuda --ngpu 1 --manualSeed 531 --outf ouputLowerLRD --lrD 0.00005 --softLabels
 
 
-python main_modified.py --dataset lfw --dataroot C:\Users\brian\linktoWork\ml\datasets\AllVids --cuda --ngpu 1 --manualSeed 531 --outf outputLowerLRDLargeNoisyLabelsLeaky --lrD 0.00005 --largeSoft --allLeaky
+python main_modified.py --dataset lfw --dataroot C:\Users\brian\linktoWork\ml\datasets\AllVids --cuda --ngpu 1 --manualSeed 531 --outf outputLowerLRDLargeNoisyLabelsLeaky --lrD 0.00005 --largeSoft --allLeaky --softLabels
+
+python main_modified.py --dataset lfw --dataroot C:\Users\brian\linktoWork\ml\datasets\lowVariationRIT --cuda --ngpu 1 --manualSeed 531 --outf lowVariationRun --lrD 0.00005 --batchSize 64 
+
+python main_modified.py --dataset lfw --dataroot C:\Users\brian\linktoWork\ml\datasets\AllVids --cuda --ngpu 1 --manualSeed 531 --outf leakReluwithVariedSlope_4 --lrD 0.00005 --allLeaky --softLabels --relu_slope .4
+
+python main_modified.py --dataset lfw --dataroot C:\Users\brian\linktoWork\ml\datasets\AllVids --cuda --ngpu 1 --manualSeed 531 --outf zVec1000RealGets0 --lrD 0.00005 --softLabels --realgets0 --nz 1000
