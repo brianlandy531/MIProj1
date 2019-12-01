@@ -118,7 +118,17 @@ if __name__ == '__main__':
         print("Long generator networek with leaky relus not set up yet")
         exit()
         
+    run_stats = "run_stats.txt"
         
+    res_file_loc = opt.outf+run_stats
+   
+   
+    res_file = open(res_file_loc, "w")
+    res_file.close()
+    
+    
+    
+    
 
 
     try:
@@ -344,6 +354,10 @@ if __name__ == '__main__':
 
     # setup optimizer
     
+    errDlossSum = 0
+    lossAvg = -1.0;
+    
+    
     if(opt.weightDecay):
     
     
@@ -362,14 +376,13 @@ if __name__ == '__main__':
 
 
     
-    modelSavePt = 10
+    modelSavePt = 50
     
     #updateGeneratorEvery = 4
 
     for epoch in range(opt.niter):
         
-        
-    
+            
         for i, data in enumerate(dataloader, 0):
         
             currentDT = datetime.datetime.now()
@@ -419,6 +432,9 @@ if __name__ == '__main__':
             D_G_z1 = output.mean().item()
             errD = errD_real + errD_fake
             
+            errDlossSum = errDlossSum + errD
+            
+            
             
             #if(i%updateGeneratorEvery!=0):
                 #if even iteration update D
@@ -447,6 +463,9 @@ if __name__ == '__main__':
                 vutils.save_image(fake.detach(),
                         '%s/fake_samples_epoch_%03d.png' % (opt.outf, epoch),
                         normalize=True)
+        
+        lossAvg = errDlossSum / i
+
         
         #store losses to give visual of how training is going
         
@@ -501,6 +520,14 @@ if __name__ == '__main__':
             # do checkpointing
             torch.save(netG.state_dict(), '%s/netG_epoch_%d.pth' % (opt.outf, epoch))
             torch.save(netD.state_dict(), '%s/netD_epoch_%d.pth' % (opt.outf, epoch))
+            
+            res_file = open(res_file_loc, "a")
+            
+            
+            res_file.write('Discriminator loss avg at epoch %d is: %.4f \n' % (epoch, lossAvg))
+            
+            res_file.close()
+    
 
 
 #play with noise terms for mode collaps and get more images maybe?
