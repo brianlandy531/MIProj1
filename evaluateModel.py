@@ -13,6 +13,7 @@ import torchvision.transforms as transforms
 import torchvision.utils as vutils
 import matplotlib.pyplot as plt
 import datetime
+import os.path
  
 #globals
 
@@ -122,6 +123,9 @@ if __name__ == '__main__':
         os.makedirs(opt.outf)
     except OSError:
         pass
+        
+        
+
       
     run_stats = "\\run_stats.txt"
         
@@ -134,11 +138,6 @@ if __name__ == '__main__':
     
     
     
-    
-
-
-    
-
     if opt.manualSeed is None:
         opt.manualSeed = random.randint(1, 10000)
     print("Random Seed: ", opt.manualSeed)
@@ -292,9 +291,7 @@ if __name__ == '__main__':
 
     netG = Generator(ngpu).to(device)
     netG.apply(weights_init)
-    if opt.netG != '':
-        netG.load_state_dict(torch.load(opt.netG))
-    print(netG)
+    
 
 
     class Discriminator(nn.Module):
@@ -346,9 +343,7 @@ if __name__ == '__main__':
 
     netD = Discriminator(ngpu).to(device)
     netD.apply(weights_init)
-    if opt.netD != '':
-        netD.load_state_dict(torch.load(opt.netD))
-    print(netD)         
+
  
     criterion = nn.BCELoss()
 
@@ -393,189 +388,122 @@ if __name__ == '__main__':
         
         lossAvg = 0
         errDlossSum = 0
-            
-        for i, data in enumerate(dataloader, 0):
         
-            currentDT = datetime.datetime.now()
-            #print (str(currentDT))
-
-            sec_last = second_cur
-            second_cur = currentDT.second + currentDT.microsecond /1000000
-
-            sec_elap = second_cur - sec_last             
-
-            
-            
-            print ("elapsed sec: %f" % sec_elap)
+        #open file
         
-            ############################
-            # (1) Update D network: maximize log(D(x)) + log(1 - D(G(z)))
-            ###########################
-            # train with real
-            netD.zero_grad()
-            real_cpu = data[0].to(device)
-            batch_size = real_cpu.size(0)
-            label = torch.full((batch_size,), randLabel(real_label, opt.largeSoft, opt.softLabels), device=device)
-
-            output = netD(real_cpu)
-            errD_real = criterion(output, label)
-            
-            #if(i%updateGeneratorEvery!=0):
-                #if even iteration update D
-            errD_real.backward()
-            
-            
-            
-            D_x = output.mean().item()
-
-            # train with fake
-            noise = torch.randn(batch_size, nz, 1, 1, device=device)
-            fake = netG(noise)
-            label.fill_(randLabel(fake_label, opt.largeSoft, opt.softLabels))
-            output = netD(fake.detach())
-            errD_fake = criterion(output, label)
-            
-        #    if(i%updateGeneratorEvery!=0):
-                #if even iteration update D
-            errD_fake.backward()
-            
-            
-            D_G_z1 = output.mean().item()
-            errD = errD_real + errD_fake
-            
-            errDlossSum = errDlossSum + errD_fake
-            
-            
-            
-            #if(i%updateGeneratorEvery!=0):
-                #if even iteration update D
-            optimizerD.step()
-
-            ############################
-            # (2) Update G network: maximize log(D(G(z)))
-            ###########################
-            netG.zero_grad()
-            label.fill_(randLabel(real_label,opt.largeSoft, opt.softLabels))  # fake labels are real for generator cost
-            output = netD(fake)
-            errG = criterion(output, label)
-            errG.backward()
-            D_G_z2 = output.mean().item()
-            optimizerG.step()
-
-            #Add probabilities to dicts for plotting
-            
-
-            print('[%d/%d][%d/%d] Loss_D: %.4f Loss_G: %.4f D(x): %.4f D(G(z)): %.4f / %.4f'
-                  % (epoch, opt.niter, i, len(dataloader),
-                     errD.item(), errG.item(), D_x, D_G_z1, D_G_z2))
-                     
-            if i % 100 == 0:
-                vutils.save_image(real_cpu,
-                        '%s/real_samples.png' % opt.outf,
-                        normalize=True)
-                fake = netG(fixed_noise)
-                vutils.save_image(fake.detach(),
-                        '%s/fake_samples_epoch_%03d.png' % (opt.outf, epoch),
-                        normalize=True)
+        #Load models
+        
+        modelD = '%s/netD_epoch_%d.pth' % (opt.outf, epoch)
+        modelG = '%s/netG_epoch_%d.pth' % (opt.outf, epoch)
         
         
         
+        if os.path.isfile(modelD):
+            netD.load_state_dict(torch.load(modelD))
+            print("D loaded")
+            dload=True
+        else:
+            dload=False
+            
         
-        lossAvg = errDlossSum / i
+        if os.path.isfile(modelG):
+            netG.load_state_dict(torch.load(modelG))
+            print("G loaded")
+            gload=True
+        else:
+            gload=False
+            
+         # eval model
+        
+        
+        if(dload==False or gload==False):
+            #write zeros
+            print("Load error writing 0s")
+            d_loss.append(0)
+            g_loss.append(0)
+            d_lossf.append(0)
+            d_lossr.append(0)      
 
+            #Store D predictions at end of every epoch
+            D_x_Arr.append(0)
+            D_G_z2_Arr.append(0)
+            D_G_z1_Arr.append(0)     
+            
+        else:
+            
+            #run on timte
+            for i, data in enumerate(dataloader, 0):
         
         
-        #store losses to give visual of how training is going fropm loss point of view
-        d_loss.append(errD.item())
-        g_loss.append(errG.item())
-        d_lossf.append(errD_fake.item())
-        d_lossr.append(errD_real.item())      
+                ############################
+                # (1) Update D network: maximize log(D(x)) + log(1 - D(G(z)))
+                ###########################
+                # train with real
+                netD.zero_grad()
+                real_cpu = data[0].to(device)
+                batch_size = real_cpu.size(0)
+                label = torch.full((batch_size,), randLabel(real_label, opt.largeSoft, opt.softLabels), device=device)
 
-        #Store D predictions at end of every epoch
-        D_x_Arr.append(D_x)
-        D_G_z2_Arr.append(D_G_z2)
-        D_G_z1_Arr.append(D_G_z1)        
-        #print(d_loss)
-        #print(g_loss)
-       
-        
-       
-
-        # #########################################################
-        #plot D losses
-        # #########################################################       
-        
-        plt.plot(d_loss, label="D Loss R+F", color="b")            
-        plt.plot(d_lossr, label="D Loss Real", color="r")
-        plt.plot(d_lossf, label="D Loss Fake", color="g")
-        plt.legend(loc='lower right')
-        
-        loss_name = "dloss"
+                output = netD(real_cpu)
+                errD_real = criterion(output, label)
                 
-        plt.ylabel('Loss D')
-        plt.xlabel('Epoch')
-        plt.title('Discriminator Loss At End of Each Epoch of Training')
-        
-        if(epoch%plotSavePt==0):
-        
-            namepng = opt.outf + "\epoch" + str(epoch) +loss_name+ ".png"
-            
-            plt.savefig(namepng)
-        
-        # #########################################################
-        #clear plot and do G losses
-        # #########################################################
-        plt.clf()
-
-        loss_name = "gloss"
-        
-        plt.plot(g_loss, label="G Loss", color="m")
-        plt.legend(loc='lower right')
-
+                #if(i%updateGeneratorEvery!=0):
+                    #if even iteration update D
+                errD_real.backward()
                 
-        plt.ylabel('Loss G')
-        plt.xlabel('Epoch')
-        plt.title('Generator Loss At End of Each Epoch of Training')
-        
-        if(epoch%plotSavePt==0):
-        
-            namepng = opt.outf + "\epoch" + str(epoch) +loss_name+ ".png"
-            plt.savefig(namepng)
-        
-        plt.clf()
-        
-        
-        # ########################################
-        # Now plot D outputs. This will allow for objective analysis of model behavior. (did it converge?)
-        # ########################################
-        plt.plot(D_G_z1_Arr, label="D output on Fake sample 1", color="b")      
-        plt.plot(D_G_z2_Arr, label="D output on Fake sample 2", color="r")
-        plt.plot(D_x_Arr, label="D output on Real Sample", color="g")
-        plt.legend(loc='lower right')
-        
-        plt.ylabel('Probability that sample is real')
-        plt.xlabel('Epoch')
-        plt.title('Discriminator Output at End of Each Epoch')
-        
-        #if(epoch%plotSavePt==0):
-        namepng = opt.outf + "\epoch" + str(epoch) + "d_output.png"
-        plt.savefig(namepng)
+                
+                
+                D_x = output.mean().item()
+
+                # train with fake
+                noise = torch.randn(batch_size, nz, 1, 1, device=device)
+                fake = netG(noise)
+                label.fill_(randLabel(fake_label, opt.largeSoft, opt.softLabels))
+                output = netD(fake.detach())
+                errD_fake = criterion(output, label)
+                
+            #    if(i%updateGeneratorEvery!=0):
+                    #if even iteration update D
+                errD_fake.backward()
+                
+                
+                D_G_z1 = output.mean().item()
+                errD = errD_real + errD_fake
+                
+                errDlossSum = errDlossSum + errD_fake
+                
+                
+                
+                #if(i%updateGeneratorEvery!=0):
+                    #if even iteration update D
+                optimizerD.step()
+
+                ############################
+                # (2) Update G network: maximize log(D(G(z)))
+                ###########################
+                netG.zero_grad()
+                label.fill_(randLabel(real_label,opt.largeSoft, opt.softLabels))  # fake labels are real for generator cost
+                output = netD(fake)
+                errG = criterion(output, label)
+                errG.backward()
+                D_G_z2 = output.mean().item()
+                optimizerG.step()
+                break
             
-        plt.clf()
+            d_loss.append(errD.item())
+            g_loss.append(errG.item())
+            d_lossf.append(errD_fake.item())
+            d_lossr.append(errD_real.item())      
+
+            #Store D predictions at end of every epoch
+            D_x_Arr.append(D_x)
+            D_G_z2_Arr.append(D_G_z2)
+            D_G_z1_Arr.append(D_G_z1)        
+
         
-        # #################################
-        # Save the model
-        # #################################
-        #if it has been 100 epochs, stor model
-        if(epoch% modelSavePt==0):
-            # do checkpointing
-            torch.save(netG.state_dict(), '%s/netG_epoch_%d.pth' % (opt.outf, epoch))
-            torch.save(netD.state_dict(), '%s/netD_epoch_%d.pth' % (opt.outf, epoch))
-            
         res_file = open(res_file_loc, "a")    
         res_file.write('%d %.4f %.4f %.4f %.4f %.4f %.4f %.4f \n' % (epoch, d_loss[-1], d_lossr[-1], d_lossf[-1], g_loss[-1], D_G_z1_Arr[-1], D_G_z2_Arr[-1], D_x_Arr[-1]))            
         res_file.close()
+                
+            
         
-#play with noise terms for mode collaps and get more images maybe?
-
-# make plots
