@@ -15,3 +15,14 @@ python main_modified.py --dataset lfw --dataroot C:\Users\brian\linktoWork\ml\da
 python main_modified.py --dataset lfw --dataroot C:\Users\brian\linktoWork\ml\datasets\AllVids --cuda --ngpu 1 --manualSeed 531 --outf zVec1000RealGets0 --lrD 0.00005 --softLabels --realgets0 --nz 1000
 
 python main_modified.py --dataset lfw --dataroot C:\Users\brian\linktoWork\ml\datasets\AllVids --cuda --ngpu 1 --manualSeed 531 --outf moreFiltersInG --lrD 0.00005 --softLabels --ngf 128 --niter 1000
+
+python main_modified.py --dataset lfw --dataroot C:\Users\brian\linktoWork\ml\datasets\AllVids --cuda --ngpu 1 --manualSeed 531 --outf moreFiltersInGLRDhigher --lrD 0.0001 --softLabels --ngf 128 --niter 1000
+
+python main_modified.py --dataset lfw --dataroot C:\Users\brian\linktoWork\ml\datasets\AllVids --cuda --ngpu 1 --manualSeed 531 --outf moreFiltersInGLRDhigher256 --lrD 0.0002 --softLabels --ngf 256 --niter 1000
+
+python main_modified.py --dataset lfw --dataroot C:\Users\brian\linktoWork\ml\datasets\AllVids --cuda --ngpu 1 --manualSeed 531 --outf moreFiltersInGLRDhigher128BadD --lrD 0.00001 --softLabels --ngf 128 --niter 1000
+
+Run evaluations:
+python evaluateModel.py --dataset lfw --dataroot C:\Users\brian\linktoWork\ml\datasets\AllVids --cuda --ngpu 1 --manualSeed 531 --outf weigthDecayDandG
+
+python evaluateModel.py --dataset lfw --dataroot C:\Users\brian\linktoWork\ml\datasets\AllVids --cuda --ngpu 1 --manualSeed 531 --outf D:\Stored_Data_MI\updateGfour_donce --niter 1000
