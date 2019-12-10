@@ -1,3 +1,5 @@
+Some of the commands run: I started saving these way late in the process once I couldn't keep track of what options were run with what output folders  
+
 python main_modified.py --dataset lfw --dataroot C:\Users\brian\linktoWork\ml\datasets\AllVids --cuda --ngpu 1 --manualSeed 531 --outf output_run --batchSize 64 --softLabels
 
 
